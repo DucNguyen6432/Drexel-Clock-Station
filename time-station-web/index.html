@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#07294D">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Time Station">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <link rel="manifest" href="manifest.json">
+    <title>Time Station</title>
+    <style>
+        body {
+            background-color: #07294D; /* Drexel Blue */
+            color: #FFC600; /* Drexel Gold */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            box-sizing: border-box;
+            padding: calc(12px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) calc(20px + env(safe-area-inset-left, 0px));
+            overflow: auto;
+        }
+
+        h1 {
+            margin: 0 0 8px 0;
+            font-size: 1.3rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* Option bar at the top center */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .tab {
+            max-width: none;
+            flex: none;
+            padding: 6px 16px;
+            font-size: 0.8rem;
+            background: transparent;
+            color: #FFC600;
+            border: 2px solid #FFC600;
+        }
+        .tab:hover { background: rgba(255, 198, 0, 0.18); color: #FFC600; }
+        .tab.active, .tab.active:hover { background: #FFC600; color: #07294D; }
+        .tab:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+        .panel.hidden { display: none; }
+
+        /* Single-view layout: one panel shown at a time */
+        .main-platform {
+            display: flex;
+            width: 100%;
+            flex: 1;
+            max-width: none;
+            justify-content: center;
+            align-items: stretch;
+            gap: 20px;
+        }
+
+        /* Shared panel style */
+        .panel {
+            background: rgba(255, 255, 255, 0.04);
+            padding: 30px 20px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px 0 rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1 1 100%;
+            max-width: none;
+            justify-content: center;
+        }
+
+        /* Main clock panel spacing */
+        .panel.center-panel {
+            gap: 16px;
+        }
+
+        .panel h2 {
+            margin-top: 0;
+            font-size: 1.6rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #ffffff;
+            border-bottom: 2px solid #FFC600;
+            padding-bottom: 5px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* --- ANALOG CLOCK FACE WITH ALL 12 NUMBERS --- */
+        .analog-clock {
+            --size: min(46vh, 80vw);
+            width: var(--size);
+            height: var(--size);
+            border: 8px solid #FFC600;
+            border-radius: 50%;
+            position: relative;
+            background: #0d3c6c;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.6), 0 10px 20px rgba(0,0,0,0.3);
+        }
+
+        .analog-clock::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            background: #FFC600;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            z-index: 10;
+        }
+
+        /* Spread the 12 numbers around the circle */
+        .num-wrapper {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            font-size: calc(var(--size) * 0.08);
+            font-weight: bold;
+            color: #FFC600;
+            padding: calc(var(--size) * 0.03);
+            box-sizing: border-box;
+            transform-origin: center;
+        }
+
+        /* Counter-rotate each number so it stays upright */
+        .num-wrapper span {
+            display: inline-block;
+        }
+
+        /* Clock hands */
+        .hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: bottom center;
+            border-radius: 5px;
+        }
+
+        .hour-hand { width: calc(var(--size) * 0.025); height: calc(var(--size) * 0.266); background-color: #fff; margin-left: calc(var(--size) * -0.0125); transform: rotate(0deg); }
+        .minute-hand { width: calc(var(--size) * 0.016); height: calc(var(--size) * 0.375); background-color: #DDDDDD; margin-left: calc(var(--size) * -0.008); transform: rotate(0deg); }
+        .second-hand { width: max(2px, calc(var(--size) * 0.007)); height: calc(var(--size) * 0.42); background-color: #FF3B30; margin-left: calc(var(--size) * -0.0035); transform: rotate(0deg); transition: none; }
+
+        /* --- MAIN DIGITAL CLOCK --- */
+        .digital-display { text-align: center; width: 100%; }
+        .date-box { font-size: clamp(1.2rem, 3.2vh, 2.4rem); color: #ffffff; margin-bottom: 10px; font-weight: 500; }
+        .time-box {
+            font-size: clamp(2.4rem, 8vh, 5.5rem);
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            background: rgba(0, 0, 0, 0.25);
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: inline-block;
+        }
+        .ampm-box { font-size: 0.55em; color: #ffeb3b; margin-left: 6px; }
+
+        /* --- SIDE CLOCKS (STOPWATCH & COUNTDOWN) --- */
+        .sub-display {
+            font-size: clamp(2.5rem, 11vw, 9rem);
+            font-family: 'Courier New', Courier, monospace;
+            background: rgba(0,0,0,0.3);
+            padding: 3vh 4vw;
+            border-radius: 10px;
+            margin: 4vh 0;
+            color: #ffffff;
+            font-weight: bold;
+            text-align: center;
+            min-width: 200px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* Control buttons */
+        .control-group {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            justify-content: center;
+        }
+
+        button {
+            background-color: #FFC600;
+            color: #07294D;
+            border: none;
+            padding: 16px 28px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            flex: 1;
+            max-width: 200px;
+        }
+
+        button:hover { background-color: #fff; transform: translateY(-2px); }
+        button:active { transform: translateY(0); }
+        button.btn-reset { background-color: #e0e0e0; color: #333; }
+        button.btn-reset:hover { background-color: #ff3b30; color: #fff; }
+
+        /* Countdown time inputs */
+        .input-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .input-group input {
+            width: min(110px, 22vw);
+            padding: 12px;
+            background: #0d3c6c;
+            border: 2px solid #FFC600;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 1.8rem;
+            text-align: center;
+            font-family: inherit;
+        }
+        .input-group label { color: #ccc; font-size: 1rem; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+    <h1>Time Station</h1>
+
+    <!-- OPTION BAR: choose which view to show -->
+    <div class="tabs" role="tablist">
+        <button class="tab active" data-view="view-clock" role="tab">Clock</button>
+        <button class="tab" data-view="view-stopwatch" role="tab">Stopwatch</button>
+        <button class="tab" data-view="view-countdown" role="tab">Countdown</button>
+    </div>
+
+    <div class="main-platform">
+
+        <!-- STOPWATCH VIEW -->
+        <div class="panel hidden" id="view-stopwatch">
+            <h2>Stopwatch</h2>
+            <div class="sub-display" id="timer-display">00:00:00.<span style="font-size: 0.6em; color:#ffeb3b;">00</span></div>
+            <div class="control-group">
+                <button id="timer-start-btn">Start</button>
+                <button class="btn-reset" id="timer-reset-btn">Reset</button>
+            </div>
+        </div>
+
+        <!-- CLOCK VIEW (HANDS + DIGITAL) -->
+        <div class="panel center-panel" id="view-clock">
+            <h2>Main Clock</h2>
+
+            <div class="analog-clock" id="clock-face">
+                <div class="hand hour-hand" id="hour"></div>
+                <div class="hand minute-hand" id="min"></div>
+                <div class="hand second-hand" id="sec"></div>
+            </div>
+
+            <div class="digital-display">
+                <div class="date-box" id="digital-date">Loading date...</div>
+                <div class="time-box">
+                    <span id="digital-time">12:00:00</span><span class="ampm-box" id="digital-ampm">AM</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- COUNTDOWN VIEW -->
+        <div class="panel hidden" id="view-countdown">
+            <h2>Countdown</h2>
+
+            <div class="input-group">
+                <div>
+                    <input type="number" id="cd-hr" min="0" max="99" value="0">
+                    <div style="text-align:center;"><label>Hr</label></div>
+                </div>
+                <div style="font-size: 2.2rem; font-weight: bold; padding-bottom:22px;">:</div>
+                <div>
+                    <input type="number" id="cd-min" min="0" max="59" value="5">
+                    <div style="text-align:center;"><label>Min</label></div>
+                </div>
+                <div style="font-size: 2.2rem; font-weight: bold; padding-bottom:22px;">:</div>
+                <div>
+                    <input type="number" id="cd-sec" min="0" max="59" value="0">
+                    <div style="text-align:center;"><label>Sec</label></div>
+                </div>
+            </div>
+
+            <div class="sub-display" id="countdown-display">00:05:00</div>
+
+            <div class="control-group">
+                <button id="countdown-start-btn">Start</button>
+                <button class="btn-reset" id="countdown-reset-btn">Reset</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Run everything after the page has fully loaded
+        window.onload = function() {
+
+            const pad = (n) => String(n).padStart(2, '0');
+
+            // --- 0. OPTION BAR: show one view at a time ---
+            const tabs = document.querySelectorAll('.tab');
+            const views = document.querySelectorAll('.panel');
+            tabs.forEach(function(tab) {
+                tab.onclick = function() {
+                    tabs.forEach(t => t.classList.toggle('active', t === tab));
+                    views.forEach(v => v.classList.toggle('hidden', v.id !== tab.dataset.view));
+                };
+            });
+
+            // --- 1. BUILD THE 12 NUMBERS ---
+            const clockFace = document.getElementById('clock-face');
+            for (let i = 1; i <= 12; i++) {
+                const wrapper = document.createElement('div');
+                wrapper.classList.add('num-wrapper');
+                const angle = i * 30;
+                wrapper.style.transform = `rotate(${angle}deg)`;
+                wrapper.innerHTML = `<span style="transform: rotate(${-angle}deg);">${i}</span>`;
+                clockFace.appendChild(wrapper);
+            }
+
+            // --- 2. MAIN CLOCK (whole seconds only, 12-hour AM/PM) ---
+            const hourHand = document.getElementById('hour');
+            const minHand = document.getElementById('min');
+            const secHand = document.getElementById('sec');
+            const digitalDate = document.getElementById('digital-date');
+            const digitalTime = document.getElementById('digital-time');
+            const digitalAmPm = document.getElementById('digital-ampm');
+
+            function updateMainClock() {
+                const now = new Date();
+                const hours = now.getHours();
+                const minutes = now.getMinutes();
+                const seconds = now.getSeconds();
+
+                // Hand angles (second hand ticks once per whole second)
+                const secDegrees = seconds * 6;
+                const minDegrees = (minutes * 6) + (seconds * 0.1);
+                const hourDegrees = ((hours % 12) * 30) + (minutes * 0.5);
+
+                hourHand.style.transform = `rotate(${hourDegrees}deg)`;
+                minHand.style.transform = `rotate(${minDegrees}deg)`;
+                secHand.style.transform = `rotate(${secDegrees}deg)`;
+
+                // Digital time in 12-hour format with AM/PM
+                const hours12 = hours % 12 || 12;
+                digitalTime.textContent = `${pad(hours12)}:${pad(minutes)}:${pad(seconds)}`;
+                digitalAmPm.textContent = hours >= 12 ? 'PM' : 'AM';
+
+                // Date, e.g. "Thursday, October 15, 2026"
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                digitalDate.textContent = now.toLocaleDateString('en-US', options);
+            }
+            updateMainClock();
+            setInterval(updateMainClock, 200);
+
+            // --- 3. STOPWATCH ---
+            let timerInterval = null;
+            let timerStartTime = 0;
+            let elapsedTime = 0;
+            let isTimerRunning = false;
+
+            const timerStartBtn = document.getElementById('timer-start-btn');
+            const timerResetBtn = document.getElementById('timer-reset-btn');
+            const timerDisplay = document.getElementById('timer-display');
+            const cs = (v) => `<span style="font-size: 0.6em; color:#ffeb3b;">${v}</span>`;
+
+            timerStartBtn.onclick = function() {
+                if (!isTimerRunning) {
+                    timerStartTime = Date.now() - elapsedTime;
+                    timerInterval = setInterval(updateTimerDisplay, 10);
+                    timerStartBtn.textContent = "Stop";
+                    timerStartBtn.style.backgroundColor = "#ff3b30";
+                    timerStartBtn.style.color = "#fff";
+                    isTimerRunning = true;
+                } else {
+                    clearInterval(timerInterval);
+                    elapsedTime = Date.now() - timerStartTime;
+                    timerStartBtn.textContent = "Start";
+                    timerStartBtn.style.backgroundColor = "#FFC600";
+                    timerStartBtn.style.color = "#07294D";
+                    isTimerRunning = false;
+                }
+            };
+
+            timerResetBtn.onclick = function() {
+                clearInterval(timerInterval);
+                elapsedTime = 0;
+                isTimerRunning = false;
+                timerDisplay.innerHTML = `00:00:00.${cs('00')}`;
+                timerStartBtn.textContent = "Start";
+                timerStartBtn.style.backgroundColor = "#FFC600";
+                timerStartBtn.style.color = "#07294D";
+            };
+
+            function updateTimerDisplay() {
+                const currentElapsed = Date.now() - timerStartTime;
+                const centis = Math.floor((currentElapsed % 1000) / 10);
+                const totalSecs = Math.floor(currentElapsed / 1000);
+                const secs = totalSecs % 60;
+                const totalMins = Math.floor(totalSecs / 60);
+                const mins = totalMins % 60;
+                const hrs = Math.floor(totalMins / 60);
+                timerDisplay.innerHTML = `${pad(hrs)}:${pad(mins)}:${pad(secs)}.${cs(pad(centis))}`;
+            }
+
+            // --- 4. COUNTDOWN ---
+            let countdownInterval = null;
+            let countdownEndTime = 0;
+            let countdownTimeLeft = 0;
+            let isCountdownRunning = false;
+
+            const countdownStartBtn = document.getElementById('countdown-start-btn');
+            const countdownResetBtn = document.getElementById('countdown-reset-btn');
+            const countdownDisplay = document.getElementById('countdown-display');
+
+            // Read the Hr / Min / Sec boxes and return the total in milliseconds
+            function readCountdownInput() {
+                const h = parseInt(document.getElementById('cd-hr').value) || 0;
+                const m = parseInt(document.getElementById('cd-min').value) || 0;
+                const s = parseInt(document.getElementById('cd-sec').value) || 0;
+                return ((h * 3600) + (m * 60) + s) * 1000;
+            }
+
+            function formatHMS(totalSecs) {
+                const h = Math.floor(totalSecs / 3600);
+                const m = Math.floor((totalSecs % 3600) / 60);
+                const s = totalSecs % 60;
+                return `${pad(h)}:${pad(m)}:${pad(s)}`;
+            }
+
+            function showCountdownInput() {
+                countdownDisplay.textContent = formatHMS(readCountdownInput() / 1000);
+            }
+
+            function setCountdownButtonIdle() {
+                countdownStartBtn.textContent = "Start";
+                countdownStartBtn.style.backgroundColor = "#FFC600";
+                countdownStartBtn.style.color = "#07294D";
+            }
+
+            countdownStartBtn.onclick = function() {
+                if (!isCountdownRunning) {
+                    if (countdownTimeLeft <= 0) {
+                        countdownTimeLeft = readCountdownInput();
+                    }
+                    if (countdownTimeLeft <= 0) return;
+
+                    countdownEndTime = Date.now() + countdownTimeLeft;
+                    countdownInterval = setInterval(updateCountdownDisplay, 100);
+                    countdownStartBtn.textContent = "Stop";
+                    countdownStartBtn.style.backgroundColor = "#ff3b30";
+                    countdownStartBtn.style.color = "#fff";
+                    isCountdownRunning = true;
+                } else {
+                    clearInterval(countdownInterval);
+                    countdownTimeLeft = countdownEndTime - Date.now();
+                    setCountdownButtonIdle();
+                    isCountdownRunning = false;
+                }
+            };
+
+            countdownResetBtn.onclick = function() {
+                clearInterval(countdownInterval);
+                countdownTimeLeft = 0;
+                isCountdownRunning = false;
+                showCountdownInput();
+                setCountdownButtonIdle();
+            };
+
+            function updateCountdownDisplay() {
+                const remaining = countdownEndTime - Date.now();
+                if (remaining <= 0) {
+                    clearInterval(countdownInterval);
+                    countdownDisplay.textContent = "00:00:00";
+                    alert("Time's up! ⏰");
+                    countdownTimeLeft = 0;
+                    isCountdownRunning = false;
+                    showCountdownInput();
+                    setCountdownButtonIdle();
+                    return;
+                }
+                const totalSecs = Math.ceil(remaining / 1000);
+                countdownDisplay.textContent = formatHMS(totalSecs);
+            }
+        };
+    </script>
+    <script>
+        // Lets the app load offline once installed (only works over https)
+        if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+            navigator.serviceWorker.register('sw.js').catch(function() {});
+        }
+    </script>
+</body>
+</html>
